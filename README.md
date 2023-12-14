@@ -20,9 +20,9 @@ int i = 12;
 threadpool_add_task(tp, (void*)func, (void*)&i);
 ```
 
-When finished, simply free the threadpool:
+Finally, free the threadpool, specifying a graceful or immediate shutdown:
 ```C
-threadpool_destroy(tp);
+threadpool_destroy(tp, IMMEDIATE_SHUTDOWN);
 ```
 
 ### Implementation

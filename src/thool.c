@@ -43,6 +43,7 @@ typedef struct thread {
 } thread;
 
 typedef struct threadpool {
+    int shutdown;                       // prevents threadpool from continuing
     int keepalive;                      // dictates whether threads can live
     thread *threads;                    // container for all *alive* threads
     taskqueue taskqueue;                // taskqueue manager
@@ -82,6 +83,7 @@ struct threadpool* threadpool_init(uint32_t num_threads, uint32_t queue_size) {
     // initialize tp primitives first as threads might require them immediately
     pthread_mutex_init(&(tp->thread_count_lock), NULL);
 
+    tp->shutdown = 0;
     tp->keepalive = 1;
     tp->threads_alive = 0;
     tp->threads_working = 0;
@@ -98,15 +100,28 @@ struct threadpool* threadpool_init(uint32_t num_threads, uint32_t queue_size) {
 }
 
 int threadpool_add_task(threadpool* tp, void (*func)(void*), void* arg) {
+    if (tp->shutdown) { // reject new tasks if we're shutting down
+        return THREADPOOL_SHUTDOWN;
+    }
     return taskqueue_add(&tp->taskqueue, func, arg);
 }
 
-int threadpool_destroy(threadpool* tp) {
+int threadpool_destroy(threadpool* tp, ThreadShutdown flag) {
     if (tp == NULL) {
         return 0;
     }
 
-    // notify all threads to finish-up
+
+    tp->shutdown = 1;
+    if (flag == GRACEFUL_SHUTDOWN) {
+        while (tp->taskqueue.size > 0) {
+            // complete remaining tasks (no more will be added)
+            pthread_cond_broadcast(&(tp->taskqueue.jobs_pending));
+            usleep(10000);
+        }
+    }
+
+    // notify all threads to finish-up their current task
     tp->keepalive = 0;
     ThreadPoolError err = 0;
     if (pthread_cond_broadcast(&(tp->taskqueue.jobs_pending)) != 0) {
@@ -117,7 +132,11 @@ int threadpool_destroy(threadpool* tp) {
     // keep polling threads until they're done
     while (tp->threads_working){
         pthread_cond_broadcast(&(tp->taskqueue.jobs_pending));
-        sleep(1); // a bit hacky but give remaining threads time to finish-up
+        usleep(10000); // a bit hacky but give remaining threads time to finish
+    }
+
+    for (int i=0; i < tp->threads_alive; i++) {
+        pthread_join(tp->threads[i].pthread, NULL);
     }
 
     if (err) {

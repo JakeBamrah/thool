@@ -2,12 +2,18 @@
 
 
 typedef enum {
+    IMMEDIATE_SHUTDOWN  = 0,
+    GRACEFUL_SHUTDOWN   = 1
+} ThreadShutdown;
+
+typedef enum {
     THREADPOOL_ALLOC_FAILURE    = 1,
     THREADPOOL_THREAD_FAILURE   = 2,
-    TASKQUEUE_ALLOC_FAILURE     = 3,
-    TASKQUEUE_LOCK_FAILURE      = 4,
-    TASKQUEUE_COND_FAILURE      = 5,
-    TASKQUEUE_FULL              = 6
+    THREADPOOL_SHUTDOWN         = 3,
+    TASKQUEUE_ALLOC_FAILURE     = 4,
+    TASKQUEUE_LOCK_FAILURE      = 5,
+    TASKQUEUE_COND_FAILURE      = 6,
+    TASKQUEUE_FULL              = 7
 } ThreadPoolError;
 
 typedef uint8_t thread_count_t;
@@ -55,12 +61,16 @@ int threadpool_add_task(threadpool* tp, void (*func)(void*), void* arg);
  * @brief Destroys threadpool
  *
  * Clean-up is graceful, i.e., threadpool will wait for working threads to
- * finish their current task before deallocating memory.
+ * finish their current task before deallocating memory. GRACEFUL_SHUTDOWN will
+ * complete the remaining task-queue before shutting down, whereas
+ * IMMEDIATE_SHUTDOWN will let threads finish their current task before shutting
+ * down (semi-graceful).
  *
  * @param   threadpool*     threadpool to destroy
+ * @param   flag            shutdown flag
  * @return  0               failure: ThreadPoolError enum
  */
-int threadpool_destroy(threadpool* tp);
+int threadpool_destroy(threadpool* tp, ThreadShutdown flag);
 
 /**
  * @brief Get number of actively working threads
