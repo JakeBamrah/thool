@@ -60,12 +60,14 @@ int taskqueue_init(taskqueue* tq, uint16_t q_size);
 int taskqueue_add(taskqueue* tq, void (*func)(void*), void* arg);
 int taskqueue_destroy(taskqueue* tq);
 
+unsigned int utils_get_num_procs();
+
 
 /* ------------------------- THREADPOOL ----------------------------- */
 
 struct threadpool* threadpool_init(uint32_t num_threads, uint32_t queue_size) {
     if (num_threads <= 0) {
-        num_threads = 0; // TODO: default to number of processors + 1
+        num_threads = utils_get_num_procs() + 1;
     }
 
     threadpool *tp;
@@ -285,3 +287,18 @@ void* thread_work(thread* t) {
     pthread_mutex_unlock(&(tp->thread_count_lock));
     pthread_exit(NULL);
 }
+
+
+/* ---------------------------- UTILS ------------------------------- */
+
+#ifdef __unix__
+unsigned int utils_get_num_procs()
+{
+    return (unsigned int)sysconf(_SC_NPROCESSORS_ONLN);
+}
+#else
+unsigned int utils_get_num_procs()
+{
+    return 1;
+}
+#endif
