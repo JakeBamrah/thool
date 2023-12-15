@@ -11,14 +11,14 @@
 
 int remaining;
 int tasks[QUEUE];
-threadpool* pool[QUEUES];
+threadpool* tp[QUEUES];
 pthread_mutex_t lock;
 
 void task(void* arg) {
     int* i = (int*)arg;
     *i += 1;
     if(*i < QUEUES) {
-        assert(threadpool_add_task(pool[*i], task, arg) == 0);
+        assert(threadpool_add_task(tp[*i], task, arg) == 0);
     } else {
         pthread_mutex_lock(&lock);
         remaining--;
@@ -30,15 +30,15 @@ int main(int argc, char** argv)
 {
     pthread_mutex_init(&lock, NULL);
     for(int i = 0; i < QUEUES; i++) {
-        pool[i] = threadpool_init(THREADS, QUEUE);
-        assert(pool[i] != NULL);
+        tp[i] = threadpool_init(THREADS, QUEUE);
+        assert(tp[i] != NULL);
     }
     usleep(10);
 
     remaining = QUEUE;
     for(int i = 0; i < QUEUE; i++) {
         tasks[i] = 0;
-        assert(threadpool_add_task(pool[0], task, &(tasks[i])) == 0);
+        assert(threadpool_add_task(tp[0], task, &(tasks[i])) == 0);
     }
 
     int copy = 1;
@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     }
 
     for(int i = 0; i < QUEUES; i++) {
-        assert(threadpool_destroy(pool[i], IMMEDIATE_SHUTDOWN) == 0);
+        assert(threadpool_destroy(tp[i], IMMEDIATE_SHUTDOWN) == 0);
     }
 
     pthread_mutex_destroy(&lock);
